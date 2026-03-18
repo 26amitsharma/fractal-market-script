@@ -10,7 +10,7 @@ api_secret = os.environ.get("KITE_API_SECRET")
 
 kite = KiteConnect(api_key=api_key)
 
-def compute_xy(samples, interval):
+def compute_xy(samples, interval, label):
     highs = [c['high'] for c in samples]
     lows = [c['low'] for c in samples]
     closes = [c['close'] for c in samples]
@@ -25,6 +25,7 @@ def compute_xy(samples, interval):
 
     return {
         "interval": interval,
+        "label": label,
         "samples": len(samples),
         "X": round(X, 2),
         "Y": round(Y, 2),
@@ -81,7 +82,7 @@ def candles():
         samples = fetch_samples(interval)
         if len(samples) < 30:
             return jsonify({"error": "Not enough data", "count": len(samples)}), 400
-        return jsonify(compute_xy(samples, interval))
+        return jsonify(compute_xy(samples, interval, interval))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -94,40 +95,51 @@ def compare():
         kite.set_access_token(access_token)
 
         intervals = [
-            ("minute", 5),
-            ("5minute", 5),
-            ("15minute", 15)
+            ("minute",   "1min×30 = 30 mins",        5),
+            ("5minute",  "5min×30 = 2.5 hours",       5),
+            ("15minute", "15min×30 = 1 trading day",  15),
+            ("30minute", "30min×30 = 2.5 days",       20),
+            ("60minute", "60min×30 = 1 week",         30),
         ]
 
         results = []
-        for interval, days in intervals:
+        for interval, label, days in intervals:
             samples = fetch_samples(interval, days=days)
             if len(samples) >= 30:
-                results.append(compute_xy(samples, interval))
+                results.append(compute_xy(samples, interval, label))
 
-        # Signal summary
+        # Direction summary
         directions = [r["direction"] for r in results]
         all_same = len(set(directions)) == 1
         signal = "ALIGNED - all scales agree" if all_same else "DIVERGED - scales disagree"
 
-        parent = results[2] if len(results) > 2 else None
-        children = results[:2]
-        child_dirs = [c["direction"] for c in children]
-        
-        pressure = "neutral"
-        if parent:
-            if all(d != parent["direction"] for d in child_dirs):
-                pressure = "HIGH - children challenging parent"
-            elif all(d == parent["direction"] for d in child_dirs):
-                pressure = "LOW - children confirming parent"
+        # Transformation pressure — children vs largest parent
+        if len(results) >= 2:
+            parent = results[-1]
+            children = results[:-1]
+            child_dirs = [c["direction"] for c in children]
+            all_against = all(d != parent["direction"] for d in child_dirs)
+            all_confirm = all(d == parent["direction"] for d in child_dirs)
+
+            if all_against:
+                pressure = "HIGH - all children challenging parent"
+            elif all_confirm:
+                pressure = "LOW - all children confirming parent"
             else:
-                pressure = "MEDIUM - mixed child signals"
+                confirming = sum(1 for d in child_dirs if d == parent["direction"])
+                pressure = f"MEDIUM - {confirming} of {len(child_dirs)} children confirming parent"
+        else:
+            pressure = "insufficient data"
+
+        # Y/X ratio trend across scales
+        yx_trend = "increasing" if results[-1]["Y_X_ratio"] > results[0]["Y_X_ratio"] else "decreasing"
 
         return jsonify({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "scales": results,
             "signal": signal,
-            "transformation_pressure": pressure
+            "transformation_pressure": pressure,
+            "inefficiency_trend": yx_trend
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

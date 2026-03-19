@@ -242,6 +242,155 @@ def render_body_trail(results, gen_label, span_label, theme="warm",
   </svg>
 </div>'''
 
+
+def generate_merged_flow(all_gen_data):
+    # Flow: G4 current | G3 body | G2 body | G1 body | G1 current
+    # all_gen_data is ordered G1, G2, G3, G4
+
+    if len(all_gen_data) < 3:
+        return ""
+
+    g1_label, g1_span, g1_theme, g1_results, g1_min, g1_max, g1_vmin, g1_vmax = all_gen_data[0]
+    g2_label, g2_span, g2_theme, g2_results, g2_min, g2_max, g2_vmin, g2_vmax = all_gen_data[1]
+    g3_label, g3_span, g3_theme, g3_results, g3_min, g3_max, g3_vmin, g3_vmax = all_gen_data[2]
+
+    if len(all_gen_data) >= 4:
+        g4_label, g4_span, g4_theme, g4_results, g4_min, g4_max, g4_vmin, g4_vmax = all_gen_data[3]
+    else:
+        g4_results = None
+
+    def get_body_trail(results, vmin, vmax):
+        bodies = []
+        for r in results:
+            volumes = r["volumes"]
+            closes = r["closes"]
+            avg_vol = r["avg_volume"]
+            indexed = [(i, v, c) for i, (v, c) in enumerate(zip(volumes, closes)) if v >= avg_vol]
+            top5 = sorted(indexed, key=lambda x: x[1], reverse=True)[:5]
+            top5_ordered = sorted(top5, key=lambda x: x[0])
+            bodies.extend([(v, c) for i, v, c in top5_ordered])
+        return bodies
+
+    def get_current_window(results):
+        r = results[-1]
+        return list(zip(r["volumes"], r["closes"]))
+
+    # Build 5 panels
+    panels = []
+
+    # G4 current
+    if g4_results:
+        panels.append(("G4 current", g4_theme, get_current_window(g4_results), g4_vmin, g4_vmax))
+
+    # G3 body trail
+    panels.append(("G3 body trail", g3_theme, get_body_trail(g3_results, g3_vmin, g3_vmax), g3_vmin, g3_vmax))
+
+    # G2 body trail
+    panels.append(("G2 body trail", g2_theme, get_body_trail(g2_results, g2_vmin, g2_vmax), g2_vmin, g2_vmax))
+
+    # G1 body trail
+    panels.append(("G1 body trail", g1_theme, get_body_trail(g1_results, g1_vmin, g1_vmax), g1_vmin, g1_vmax))
+
+    # G1 current
+    panels.append(("G1 current", g1_theme, get_current_window(g1_results), g1_vmin, g1_vmax))
+
+    n_panels = len(panels)
+    svg_width = 1300
+    svg_height = 220
+    padding = 35
+    segment_width = (svg_width - 2 * padding) / n_panels
+
+    svg_elements = []
+    seg_last = {}
+    seg_first = {}
+
+    for seg_idx, (panel_label, theme, data_points, vmin, vmax) in enumerate(panels):
+        if not data_points:
+            continue
+
+        seg_start_x = padding + seg_idx * segment_width
+
+        # Per-segment price scale
+        closes = [c for v, c in data_points]
+        seg_price_min = min(closes)
+        seg_price_max = max(closes)
+        seg_price_mid = (seg_price_min + seg_price_max) / 2
+        seg_price_range = seg_price_max - seg_price_min if seg_price_max != seg_price_min else 1
+
+        def price_to_y(p, pmin=seg_price_min, prange=seg_price_range):
+            return svg_height - padding - ((p - pmin) / prange) * (svg_height - 2 * padding)
+
+        # Divider
+        if seg_idx > 0:
+            svg_elements.append(f'<line x1="{seg_start_x:.1f}" y1="{padding/2}" x2="{seg_start_x:.1f}" y2="{svg_height-padding/2}" stroke="#2a2a2a" stroke-width="1"/>')
+
+        # Label
+        label_color = "#aaa" if "current" in panel_label else "#666"
+        svg_elements.append(f'<text x="{seg_start_x + segment_width/2:.1f}" y="{padding-12}" fill="{label_color}" font-size="9" text-anchor="middle">{panel_label}</text>')
+
+        # Reference lines
+        y_ceil = price_to_y(seg_price_max)
+        y_mid = price_to_y(seg_price_mid)
+        y_floor = price_to_y(seg_price_min)
+
+        svg_elements.append(f'<line x1="{seg_start_x+5:.1f}" y1="{y_ceil:.1f}" x2="{seg_start_x+segment_width-5:.1f}" y2="{y_ceil:.1f}" stroke="#222" stroke-width="0.8" stroke-dasharray="3,3"/>')
+        svg_elements.append(f'<line x1="{seg_start_x+5:.1f}" y1="{y_mid:.1f}" x2="{seg_start_x+segment_width-5:.1f}" y2="{y_mid:.1f}" stroke="#2a2a2a" stroke-width="0.8" stroke-dasharray="3,3"/>')
+        svg_elements.append(f'<line x1="{seg_start_x+5:.1f}" y1="{y_floor:.1f}" x2="{seg_start_x+segment_width-5:.1f}" y2="{y_floor:.1f}" stroke="#222" stroke-width="0.8" stroke-dasharray="3,3"/>')
+
+        svg_elements.append(f'<text x="{seg_start_x+7}" y="{y_ceil-2:.1f}" fill="#2a2a2a" font-size="7">{seg_price_max:.1f}</text>')
+        svg_elements.append(f'<text x="{seg_start_x+7}" y="{y_floor+8:.1f}" fill="#2a2a2a" font-size="7">{seg_price_min:.1f}</text>')
+
+        # Volume scale
+        vol_range = vmax - vmin if vmax != vmin else 1
+        n = len(data_points)
+        x_step = (segment_width - 20) / (n - 1) if n > 1 else 1
+
+        points = []
+        for i, (v, c) in enumerate(data_points):
+            cx = seg_start_x + 10 + i * x_step
+            cy = price_to_y(c)
+            ratio = (v - vmin) / vol_range if vol_range > 0 else 0
+            size = 3 + ratio * 14
+            low = COLOR_THEMES[theme]["low"]
+            high = COLOR_THEMES[theme]["high"]
+            r_val = int(low[0] + ratio * (high[0] - low[0]))
+            g_val = int(low[1] + ratio * (high[1] - low[1]))
+            b_val = int(low[2] + ratio * (high[2] - low[2]))
+            color = f"rgb({r_val},{g_val},{b_val})"
+            points.append((cx, cy, size, color))
+
+        # Lines
+        for i in range(1, len(points)):
+            x1, y1, _, _ = points[i-1]
+            x2, y2, _, _ = points[i]
+            svg_elements.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#333" stroke-width="1"/>')
+
+        # Circles
+        for i, (cx, cy, size, color) in enumerate(points):
+            sw = "2.5" if i == len(points)-1 else "1.5"
+            svg_elements.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{size:.1f}" fill="none" stroke="{color}" stroke-width="{sw}"/>')
+
+        if points:
+            seg_first[seg_idx] = points[0][:2]
+            seg_last[seg_idx] = points[-1][:2]
+
+    # Cross-generation connectors
+    for seg_idx in range(n_panels - 1):
+        if seg_idx in seg_last and seg_idx + 1 in seg_first:
+            x1, y1 = seg_last[seg_idx]
+            x2, y2 = seg_first[seg_idx + 1]
+            svg_elements.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#444" stroke-width="1" stroke-dasharray="3,3"/>')
+
+    return f"""<div style="margin:0 0 20px 0;">
+  <div style="color:#aaa; font-size:12px; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:4px;">
+    &#8592; ZOOM-IN FLOW: G4 current &rarr; G3 body &rarr; G2 body &rarr; G1 body &rarr; G1 current &#8594;
+  </div>
+  <svg width="{svg_width}" height="{svg_height}" style="background:#151515; border-radius:8px; border:1px solid #2a2a2a">
+    {"".join(svg_elements)}
+  </svg>
+</div>"""
+
+
 def generate_visual(instrument_name, token):
     html = f'''<!DOCTYPE html>
 <html>
@@ -259,6 +408,8 @@ def generate_visual(instrument_name, token):
 <p style="color:#555; font-size:10px;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
 '''
 
+    all_gen_data = []
+
     for interval, gen_label, span_label, interval_mins, days, n_samples, theme in GENERATIONS:
         raw = fetch_n_samples(token, interval, n=n_samples, days=days)
         windows = [raw[i*30:(i+1)*30] for i in range(3) if len(raw[i*30:(i+1)*30]) == 30]
@@ -269,11 +420,15 @@ def generate_visual(instrument_name, token):
                               interval_minutes=interval_mins)
                    for i, w in enumerate(windows)]
 
-        # Per-generation price and volume scale
         g_min, g_max, g_vmin, g_vmax = get_common_scale(results)
+        all_gen_data.append((gen_label, span_label, theme, results, g_min, g_max, g_vmin, g_vmax))
 
+    # Add merged flow at top
+    html += generate_merged_flow(all_gen_data)
+
+    for gen_label, span_label, theme, results, g_min, g_max, g_vmin, g_vmax in all_gen_data:
         html += f'''<div class="section">
-<div class="section-title">{gen_label}: {span_label} — {len(windows)} windows + Body Trail</div>
+<div class="section-title">{gen_label}: {span_label} — {len(results)} windows + Body Trail</div>
 <div>'''
 
         for r in results:

@@ -8,7 +8,7 @@ access_token = "pNFU0k6ESU26b5oHDxzgkiAVG3RZBWQj"
 kite = KiteConnect(api_key=api_key)
 kite.set_access_token(access_token)
 
-INSTRUMENT = 857857  # SUNPHARMA
+INSTRUMENT = 6385665  # DEFENCE ETF
 
 GENERATIONS = [
     ("minute",   "G1", 1,    5),

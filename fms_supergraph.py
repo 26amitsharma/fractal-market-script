@@ -182,19 +182,25 @@ def calculate_attribution(hourly_candles, macro_data):
 
     return attribution
 
-def generate_supergraph(instrument_name, zerodha_token):
+def generate_supergraph(instrument_name, zerodha_token, progress_callback=None):
+    def progress(step, done=False, filename=None):
+        if progress_callback: progress_callback(step, done, filename)
     print(f"Building super graph for {instrument_name}...")
 
     print("  Fetching regime context from SQLite...")
+    progress(0)
     regime = get_regime_context()
 
     print("  Fetching hourly macro data...")
+    progress(1)
     macro_data = fetch_hourly_macro()
 
     print("  Fetching hourly stock data...")
+    progress(2)
     hourly_candles = fetch_hourly_stock(zerodha_token)
 
     print("  Calculating attribution...")
+    progress(3)
     attribution = calculate_attribution(hourly_candles, macro_data)
 
     # Build graph
@@ -397,6 +403,7 @@ def generate_supergraph(instrument_name, zerodha_token):
     with open(filename, 'w') as f:
         f.write(html)
     print(f"  Saved: {filename}")
+    progress(4)
     return filename
 
 # Run for Defence ETF

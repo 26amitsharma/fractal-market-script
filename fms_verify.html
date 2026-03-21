@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>FMS Verify — Thesis Verification</title>
+<style>
+  body { background:#111; font-family:monospace; color:#eee; padding:20px; }
+  h1 { color:#4af; margin-bottom:4px; }
+  h2 { color:#888; font-size:13px; margin:20px 0 8px 0; border-bottom:1px solid #222; padding-bottom:4px; }
+  h3 { font-size:12px; margin:12px 0 6px 0; }
+  table { width:100%; border-collapse:collapse; margin-bottom:12px; }
+  th { color:#555; font-size:10px; text-align:left; padding:4px 8px; border-bottom:1px solid #222; }
+  td { font-size:10px; padding:3px 8px; border-bottom:1px solid #1a1a1a; color:#aaa; }
+  .section { background:#161616; border:1px solid #222; border-radius:6px; padding:16px; margin-bottom:16px; }
+  .summary { background:#1a1a2a; border:1px solid #2a2a4a; border-radius:6px; padding:16px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<h1>FMS Verify — Macro Signal Thesis Verification</h1>
+<p style="color:#555; font-size:10px;">Generated: 2026-03-22 01:43:05 | Defence ETF | Last 30 days</p>
+<p style="color:#666; font-size:11px;">Thesis: After a macro spike hour, do next 1h and 2h continue in same direction?</p>
+
+<div class="summary">
+<h2>SUMMARY — Signal Reliability by Factor</h2>
+<table>
+<tr>
+  <th>Factor</th>
+  <th>Type</th>
+  <th>Events</th>
+  <th>1h continuation%</th>
+  <th>2h continuation%</th>
+  <th>1h Verdict</th>
+  <th>2h Verdict</th>
+  <th>Actionable?</th>
+</tr><tr>
+<td style="color:#4488ff;">usd_inr</td>
+<td style="color:#4f8;">tailwind</td>
+<td>7</td>
+<td>57.1%</td>
+<td>28.6%</td>
+<td style="color:#888;">NEUTRAL</td>
+<td style="color:#f84;">REVERSAL</td>
+<td>❌ NO</td>
+</tr><tr>
+<td style="color:#4488ff;">usd_inr</td>
+<td style="color:#f84;">headwind</td>
+<td>10</td>
+<td>80.0%</td>
+<td>70.0%</td>
+<td style="color:#4f8;">STRONG</td>
+<td style="color:#4f8;">STRONG</td>
+<td>✅ YES</td>
+</tr><tr>
+<td style="color:#44ff88;">usd_cny</td>
+<td style="color:#4f8;">tailwind</td>
+<td>6</td>
+<td>83.3%</td>
+<td>66.7%</td>
+<td style="color:#4f8;">STRONG</td>
+<td style="color:#fa8;">MODERATE</td>
+<td>✅ YES</td>
+</tr><tr>
+<td style="color:#44ff88;">usd_cny</td>
+<td style="color:#f84;">headwind</td>
+<td>6</td>
+<td>50.0%</td>
+<td>50.0%</td>
+<td style="color:#888;">NEUTRAL</td>
+<td style="color:#888;">NEUTRAL</td>
+<td>❌ NO</td>
+</tr><tr>
+<td style="color:#ff4444;">oil</td>
+<td style="color:#4f8;">tailwind</td>
+<td>5</td>
+<td>60.0%</td>
+<td>40.0%</td>
+<td style="color:#fa8;">MODERATE</td>
+<td style="color:#f84;">REVERSAL</td>
+<td>❌ NO</td>
+</tr><tr>
+<td style="color:#ff4444;">oil</td>
+<td style="color:#f84;">headwind</td>
+<td>5</td>
+<td>60.0%</td>
+<td>40.0%</td>
+<td style="color:#fa8;">MODERATE</td>
+<td style="color:#f84;">REVERSAL</td>
+<td>❌ NO</td>
+</tr><tr>
+<td style="color:#ffaa00;">gas</td>
+<td style="color:#4f8;">tailwind</td>
+<td>2</td>
+<td>50.0%</td>
+<td>50.0%</td>
+<td style="color:#888;">NEUTRAL</td>
+<td style="color:#888;">NEUTRAL</td>
+<td>❌ NO</td>
+</tr><tr>
+<td style="color:#ffaa00;">gas</td>
+<td style="color:#f84;">headwind</td>
+<td>3</td>
+<td>33.3%</td>
+<td>33.3%</td>
+<td style="color:#f84;">REVERSAL</td>
+<td style="color:#f84;">REVERSAL</td>
+<td>❌ NO</td>
+</tr></table>
+</div><div class="section"><h2 style="color:#4488ff;">USD_INR</h2><h3 style="color:#4f8;">TAILWIND — 7 events | 1h: 57.1% <span style="color:#888;">NEUTRAL</span> | 2h: 28.6%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>03-05 09:15</td><td>88.78</td><td>90.46</td>
+<td>90.73</td><td>90.44</td>
+<td>+0.298%</td><td>-0.022%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-10 13:15</td><td>91.85</td><td>92.11</td>
+<td>92.13</td><td>92.47</td>
+<td>+0.022%</td><td>+0.391%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-10 14:15</td><td>92.11</td><td>92.13</td>
+<td>92.47</td><td>92.1</td>
+<td>+0.369%</td><td>-0.033%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-17 09:15</td><td>86.39</td><td>87.34</td>
+<td>87.29</td><td>87.12</td>
+<td>-0.057%</td><td>-0.252%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-18 15:15</td><td>88.87</td><td>88.9</td>
+<td>87.3</td><td>87.28</td>
+<td>-1.8%</td><td>-1.822%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-19 15:15</td><td>85.7</td><td>86</td>
+<td>86.8</td><td>86.42</td>
+<td>+0.93%</td><td>+0.488%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-20 12:15</td><td>85.96</td><td>86.08</td>
+<td>85.76</td><td>85.13</td>
+<td>-0.372%</td><td>-1.104%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr></table><h3 style="color:#f84;">HEADWIND — 10 events | 1h: 80.0% <span style="color:#4f8;">STRONG</span> | 2h: 70.0%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>03-02 10:15</td><td>90.21</td><td>90.1</td>
+<td>89.68</td><td>89.31</td>
+<td>-0.466%</td><td>-0.877%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-04 09:15</td><td>89.95</td><td>89.55</td>
+<td>89.14</td><td>88.83</td>
+<td>-0.458%</td><td>-0.804%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-04 15:15</td><td>88.89</td><td>88.78</td>
+<td>90.46</td><td>90.73</td>
+<td>+1.892%</td><td>+2.196%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-10 09:15</td><td>91.66</td><td>91.18</td>
+<td>91.79</td><td>91.45</td>
+<td>+0.669%</td><td>+0.296%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-12 14:15</td><td>90.55</td><td>90.45</td>
+<td>90.4</td><td>88.13</td>
+<td>-0.055%</td><td>-2.565%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-12 15:15</td><td>90.45</td><td>90.4</td>
+<td>88.13</td><td>87.84</td>
+<td>-2.511%</td><td>-2.832%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-16 12:15</td><td>85.95</td><td>85.51</td>
+<td>85.44</td><td>86.38</td>
+<td>-0.082%</td><td>+1.017%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-19 09:15</td><td>88.9</td><td>87.3</td>
+<td>87.28</td><td>87.17</td>
+<td>-0.023%</td><td>-0.149%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-19 10:15</td><td>87.3</td><td>87.28</td>
+<td>87.17</td><td>86.66</td>
+<td>-0.126%</td><td>-0.71%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-20 10:15</td><td>86.8</td><td>86.42</td>
+<td>85.96</td><td>86.08</td>
+<td>-0.532%</td><td>-0.393%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr></table></div><div class="section"><h2 style="color:#44ff88;">USD_CNY</h2><h3 style="color:#4f8;">TAILWIND — 6 events | 1h: 83.3% <span style="color:#4f8;">STRONG</span> | 2h: 66.7%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>02-24 14:15</td><td>87.88</td><td>87.92</td>
+<td>88.14</td><td>88.65</td>
+<td>+0.25%</td><td>+0.83%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>02-26 09:15</td><td>88.8</td><td>89.23</td>
+<td>89.58</td><td>89.58</td>
+<td>+0.392%</td><td>+0.392%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-04 12:15</td><td>88.83</td><td>88.9</td>
+<td>88.99</td><td>88.89</td>
+<td>+0.101%</td><td>-0.011%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-06 15:15</td><td>93.76</td><td>93.9</td>
+<td>91.6</td><td>91.09</td>
+<td>-2.449%</td><td>-2.993%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-10 13:15</td><td>91.85</td><td>92.11</td>
+<td>92.13</td><td>92.47</td>
+<td>+0.022%</td><td>+0.391%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-16 14:15</td><td>85.44</td><td>86.38</td>
+<td>86.39</td><td>87.34</td>
+<td>+0.012%</td><td>+1.111%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr></table><h3 style="color:#f84;">HEADWIND — 6 events | 1h: 50.0% <span style="color:#888;">NEUTRAL</span> | 2h: 50.0%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>02-26 12:15</td><td>89.58</td><td>89.56</td>
+<td>89.83</td><td>90</td>
+<td>+0.301%</td><td>+0.491%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-02 11:15</td><td>90.1</td><td>89.68</td>
+<td>89.31</td><td>89.57</td>
+<td>-0.413%</td><td>-0.123%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-06 12:15</td><td>93.78</td><td>93.6</td>
+<td>93.84</td><td>93.76</td>
+<td>+0.256%</td><td>+0.171%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-09 11:15</td><td>91.09</td><td>90.74</td>
+<td>90.77</td><td>91</td>
+<td>+0.033%</td><td>+0.287%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-13 13:15</td><td>87.54</td><td>87.52</td>
+<td>87.29</td><td>87.11</td>
+<td>-0.263%</td><td>-0.468%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-20 13:15</td><td>86.08</td><td>85.76</td>
+<td>85.13</td><td>85.16</td>
+<td>-0.735%</td><td>-0.7%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr></table></div><div class="section"><h2 style="color:#ff4444;">OIL</h2><h3 style="color:#4f8;">TAILWIND — 5 events | 1h: 60.0% <span style="color:#fa8;">MODERATE</span> | 2h: 40.0%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>03-02 13:15</td><td>89.31</td><td>89.57</td>
+<td>89.87</td><td>89.95</td>
+<td>+0.335%</td><td>+0.424%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-06 15:15</td><td>93.76</td><td>93.9</td>
+<td>91.6</td><td>91.09</td>
+<td>-2.449%</td><td>-2.993%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-10 13:15</td><td>91.85</td><td>92.11</td>
+<td>92.13</td><td>92.47</td>
+<td>+0.022%</td><td>+0.391%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-10 14:15</td><td>92.11</td><td>92.13</td>
+<td>92.47</td><td>92.1</td>
+<td>+0.369%</td><td>-0.033%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-10 15:15</td><td>92.13</td><td>92.47</td>
+<td>92.1</td><td>91.9</td>
+<td>-0.4%</td><td>-0.616%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr></table><h3 style="color:#f84;">HEADWIND — 5 events | 1h: 60.0% <span style="color:#fa8;">MODERATE</span> | 2h: 40.0%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>03-09 11:15</td><td>91.09</td><td>90.74</td>
+<td>90.77</td><td>91</td>
+<td>+0.033%</td><td>+0.287%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-09 15:15</td><td>91.73</td><td>91.66</td>
+<td>91.18</td><td>91.79</td>
+<td>-0.524%</td><td>+0.142%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-10 09:15</td><td>91.66</td><td>91.18</td>
+<td>91.79</td><td>91.45</td>
+<td>+0.669%</td><td>+0.296%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-12 14:15</td><td>90.55</td><td>90.45</td>
+<td>90.4</td><td>88.13</td>
+<td>-0.055%</td><td>-2.565%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-13 15:15</td><td>87.29</td><td>87.11</td>
+<td>86.64</td><td>85.68</td>
+<td>-0.54%</td><td>-1.642%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr></table></div><div class="section"><h2 style="color:#ffaa00;">GAS</h2><h3 style="color:#4f8;">TAILWIND — 2 events | 1h: 50.0% <span style="color:#888;">NEUTRAL</span> | 2h: 50.0%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>03-02 13:15</td><td>89.31</td><td>89.57</td>
+<td>89.87</td><td>89.95</td>
+<td>+0.335%</td><td>+0.424%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr><tr>
+<td>03-06 15:15</td><td>93.76</td><td>93.9</td>
+<td>91.6</td><td>91.09</td>
+<td>-2.449%</td><td>-2.993%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr></table><h3 style="color:#f84;">HEADWIND — 3 events | 1h: 33.3% <span style="color:#f84;">REVERSAL</span> | 2h: 33.3%</h3>
+<table>
+<tr><th>Date</th><th>Prev</th><th>Curr</th><th>Next1</th><th>Next2</th><th>1h%</th><th>2h%</th><th>1h</th><th>2h</th></tr><tr>
+<td>03-02 12:15</td><td>89.68</td><td>89.31</td>
+<td>89.57</td><td>89.87</td>
+<td>+0.291%</td><td>+0.627%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-09 11:15</td><td>91.09</td><td>90.74</td>
+<td>90.77</td><td>91</td>
+<td>+0.033%</td><td>+0.287%</td>
+<td style="color:#f84;">✗</td>
+<td style="color:#f84;">✗</td>
+</tr><tr>
+<td>03-19 09:15</td><td>88.9</td><td>87.3</td>
+<td>87.28</td><td>87.17</td>
+<td>-0.023%</td><td>-0.149%</td>
+<td style="color:#4f8;">✓</td>
+<td style="color:#4f8;">✓</td>
+</tr></table></div></body></html>

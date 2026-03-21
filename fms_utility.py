@@ -19,14 +19,21 @@ MACRO_SOURCES = {
 }
 
 MACRO_COLORS = {
-    'oil':     {'square': '#ff4444', 'label': 'Oil'},
-    'gas':     {'square': '#ffaa00', 'label': 'Gas'},
-    'usd_inr': {'square': '#4488ff', 'label': 'USD/INR'},
-    'usd_cny': {'square': '#44ff88', 'label': 'USD/CNY'}
+    'oil':     '#ff4444',
+    'gas':     '#ffaa00',
+    'usd_inr': '#4488ff',
+    'usd_cny': '#44ff88'
 }
 
+MACRO_LABELS = {
+    'oil': 'Oil', 'gas': 'Gas',
+    'usd_inr': 'USD/INR', 'usd_cny': 'USD/CNY'
+}
+
+# USD/INR is inverse - expected behavior is opposite direction
+INVERSE_FACTORS = {'usd_inr'}
+
 def fetch_hourly_macro():
-    """Fetch hourly macro data for all 4 factors"""
     macro_data = {}
     for factor, symbol in MACRO_SOURCES.items():
         try:
@@ -35,74 +42,99 @@ def fetch_hourly_macro():
             df = df.dropna(subset=['change_pct'])
             threshold = df['change_pct'].abs().quantile(0.90)
             df['is_spike'] = df['change_pct'].abs() >= threshold
-            macro_data[factor] = df
-            print(f"  {factor}: {len(df)} hourly candles, threshold={round(threshold,3)}%")
+            df.index = pd.to_datetime(df.index, utc=True)
+            macro_data[factor] = {'df': df, 'threshold': threshold}
+            spikes = df['is_spike'].sum()
+            print(f"  {factor}: {len(df)} hourly candles | threshold={round(threshold,3)}% | spikes={spikes}")
         except Exception as e:
             print(f"  {factor}: ERROR - {e}")
     return macro_data
 
 def fetch_hourly_defence():
-    """Fetch hourly Defence ETF data from Zerodha"""
     to_date = datetime.now()
     from_date = to_date - timedelta(days=30)
     candles = kite.historical_data(6385665, from_date, to_date, '60minute')
-    print(f"  Defence ETF: {len(candles)} hourly candles")
+    print(f"  Defence ETF hourly: {len(candles)} candles")
     return candles
 
 def fetch_daily_defence():
-    """Fetch 6 months daily Defence ETF data"""
     to_date = datetime.now()
-    from_date = to_date - timedelta(days=180)
+    from_date = to_date - timedelta(days=30)
     candles = kite.historical_data(6385665, from_date, to_date, 'day')
     print(f"  Defence ETF daily: {len(candles)} candles")
     return candles
 
-def generate_utility_visual(daily_candles, hourly_candles, macro_data):
-    """Generate the correlation visual page"""
+def calculate_hourly_volume_attribution(hourly_candles, macro_data):
+    daily_attribution = {}
 
-    # Process daily data
+    for candle in hourly_candles:
+        try:
+            candle_time_utc = candle['date'].astimezone(
+                __import__('datetime').timezone.utc
+            )
+        except:
+            candle_time_utc = candle['date']
+
+        date_str = candle['date'].strftime('%Y-%m-%d')
+        vol = candle['volume']
+
+        if date_str not in daily_attribution:
+            daily_attribution[date_str] = {
+                'independent': 0,
+                'oil': 0, 'gas': 0, 'usd_inr': 0, 'usd_cny': 0,
+                'oil_direction': 0, 'gas_direction': 0,
+                'usd_inr_direction': 0, 'usd_cny_direction': 0,
+                'total': 0
+            }
+
+        daily_attribution[date_str]['total'] += vol
+
+        spiked_factors = []
+        for factor, mdata in macro_data.items():
+            df = mdata['df']
+            try:
+                hour_str = candle_time_utc.strftime('%Y-%m-%d %H')
+                matching = df[df.index.strftime('%Y-%m-%d %H') == hour_str]
+                if not matching.empty and matching.iloc[0]['is_spike']:
+                    spiked_factors.append((factor, float(matching.iloc[0]['change_pct'])))
+            except:
+                pass
+
+        if spiked_factors:
+            vol_per_factor = vol / len(spiked_factors)
+            for factor, chg in spiked_factors:
+                daily_attribution[date_str][factor] += vol_per_factor
+                daily_attribution[date_str][factor + '_direction'] += chg
+        else:
+            daily_attribution[date_str]['independent'] += vol
+
+    return daily_attribution
+
+def generate_utility_visual(daily_candles, hourly_candles, macro_data, daily_attribution):
     closes = [c['close'] for c in daily_candles]
     volumes = [c['volume'] for c in daily_candles]
     dates = [c['date'].strftime('%Y-%m-%d') for c in daily_candles]
 
-    avg_vol = sum(volumes) / len(volumes)
-    max_vol = max(volumes)
-    min_vol = min(volumes)
     price_min = min(closes)
     price_max = max(closes)
     price_mid = (price_min + price_max) / 2
     price_range = price_max - price_min if price_max != price_min else 1
 
-    # Process hourly data - find spike hours per day per factor
-    daily_macro_spikes = {}  # date -> {factor -> spike_info}
+    global_max_vol = max(volumes) if volumes else 1
 
-    for factor, df in macro_data.items():
-        spike_rows = df[df['is_spike'] == True]
-        for idx, row in spike_rows.iterrows():
-            date_str = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
-            if date_str not in daily_macro_spikes:
-                daily_macro_spikes[date_str] = {}
-            if factor not in daily_macro_spikes[date_str]:
-                daily_macro_spikes[date_str][factor] = []
-            daily_macro_spikes[date_str][factor].append(float(row['change_pct']))
+    def vol_to_size(v, max_v=None, min_size=2, max_size=20):
+        if max_v is None:
+            max_v = global_max_vol
+        if max_v == 0:
+            return min_size
+        return min_size + (v / max_v) * (max_size - min_size)
 
-    # Process hourly defence volumes on spike hours
-    hourly_defence_by_date = {}
-    avg_hourly_vol = sum(c['volume'] for c in hourly_candles) / len(hourly_candles) if hourly_candles else 1
-
-    for c in hourly_candles:
-        date_str = c['date'].strftime('%Y-%m-%d')
-        if date_str not in hourly_defence_by_date:
-            hourly_defence_by_date[date_str] = []
-        hourly_defence_by_date[date_str].append(c['volume'])
-
-    # SVG dimensions
     svg_width = 1300
-    svg_height = 300
-    padding_left = 50
+    svg_height = 320
+    padding_left = 55
     padding_right = 20
-    padding_top = 40
-    padding_bottom = 40
+    padding_top = 50
+    padding_bottom = 45
 
     n = len(daily_candles)
     x_step = (svg_width - padding_left - padding_right) / (n - 1) if n > 1 else 1
@@ -110,26 +142,16 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data):
     def price_to_y(p):
         return svg_height - padding_bottom - ((p - price_min) / price_range) * (svg_height - padding_top - padding_bottom)
 
-    def vol_to_circle_size(v):
-        vol_range = max_vol - min_vol if max_vol != min_vol else 1
-        return 3 + (v - min_vol) / vol_range * 18
-
     svg_elements = []
 
     # Reference lines
-    y_ceil = price_to_y(price_max)
-    y_mid = price_to_y(price_mid)
-    y_floor = price_to_y(price_min)
+    for p, label in [(price_max, f'{price_max:.1f}'), (price_mid, f'{price_mid:.1f}'), (price_min, f'{price_min:.1f}')]:
+        y = price_to_y(p)
+        col = '#333' if p == price_mid else '#2a2a2a'
+        svg_elements.append(f'<line x1="{padding_left}" y1="{y:.1f}" x2="{svg_width-padding_right}" y2="{y:.1f}" stroke="{col}" stroke-width="0.8" stroke-dasharray="4,4"/>')
+        svg_elements.append(f'<text x="{padding_left-4}" y="{y+3:.1f}" fill="#444" font-size="8" text-anchor="end">{label}</text>')
 
-    svg_elements.append(f'<line x1="{padding_left}" y1="{y_ceil:.1f}" x2="{svg_width-padding_right}" y2="{y_ceil:.1f}" stroke="#2a2a2a" stroke-width="0.8" stroke-dasharray="4,4"/>')
-    svg_elements.append(f'<line x1="{padding_left}" y1="{y_mid:.1f}" x2="{svg_width-padding_right}" y2="{y_mid:.1f}" stroke="#333" stroke-width="0.8" stroke-dasharray="4,4"/>')
-    svg_elements.append(f'<line x1="{padding_left}" y1="{y_floor:.1f}" x2="{svg_width-padding_right}" y2="{y_floor:.1f}" stroke="#2a2a2a" stroke-width="0.8" stroke-dasharray="4,4"/>')
-
-    svg_elements.append(f'<text x="{padding_left-4}" y="{y_ceil:.1f}" fill="#444" font-size="8" text-anchor="end">{price_max:.1f}</text>')
-    svg_elements.append(f'<text x="{padding_left-4}" y="{y_mid:.1f}" fill="#444" font-size="8" text-anchor="end">{price_mid:.1f}</text>')
-    svg_elements.append(f'<text x="{padding_left-4}" y="{y_floor:.1f}" fill="#444" font-size="8" text-anchor="end">{price_min:.1f}</text>')
-
-    # Connect circles with line
+    # Connect circles
     for i in range(1, n):
         x1 = padding_left + (i-1) * x_step
         y1 = price_to_y(closes[i-1])
@@ -141,119 +163,161 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data):
     for i, (date, close, vol) in enumerate(zip(dates, closes, volumes)):
         cx = padding_left + i * x_step
         cy = price_to_y(close)
-        circle_size = vol_to_circle_size(vol)
 
-        # Circle color based on direction
-        if i > 0:
-            circle_color = '#4f8' if close > closes[i-1] else '#f84'
+        attr = daily_attribution.get(date, None)
+
+        # Circle = independent volume, always neutral grey/white
+        if attr and attr['total'] > 0:
+            indep_vol = attr['independent']
         else:
-            circle_color = '#888'
+            indep_vol = vol
 
-        # Draw main circle
-        svg_elements.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{circle_size:.1f}" fill="none" stroke="{circle_color}" stroke-width="1.2" opacity="0.7"/>')
+        circle_size = vol_to_size(indep_vol)
+        svg_elements.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{circle_size:.1f}" fill="none" stroke="#bbbbbb" stroke-width="1.5" opacity="0.7"/>')
 
-        # Draw squares for macro spikes
-        if date in daily_macro_spikes:
-            square_offset = -circle_size - 4
-            for factor_idx, (factor, spike_changes) in enumerate(daily_macro_spikes[date].items()):
-                color = MACRO_COLORS[factor]['square']
-                max_spike = max(abs(c) for c in spike_changes)
+        # Squares = macro attributed volume
+        if attr:
+            sq_x_base = cx + circle_size + 3
+            sq_stack = 0
 
-                # Square size based on spike magnitude
-                sq_size = 3 + min(max_spike * 1.5, 12)
+            for factor in ['oil', 'gas', 'usd_inr', 'usd_cny']:
+                factor_vol = attr.get(factor, 0)
+                if factor_vol > 0:
+                    sq_size = vol_to_size(factor_vol, max_v=global_max_vol, max_size=14, min_size=2)
+                    sq_x = sq_x_base
+                    sq_y = cy - sq_size/2 - sq_stack
 
-                # Stack squares horizontally if multiple factors
-                sq_x = cx - sq_size/2 + factor_idx * (sq_size + 2)
-                sq_y = cy + square_offset - factor_idx * (sq_size + 2)
+                    color = MACRO_COLORS[factor]
 
-                # Did stock follow this factor?
-                stock_direction = 1 if i > 0 and close > closes[i-1] else -1
-                macro_direction = 1 if sum(spike_changes) > 0 else -1
+                    # Determine followed or diverged
+                    stock_up = i > 0 and closes[i] > closes[i-1]
+                    macro_dir = attr.get(factor + '_direction', 0)
+                    macro_up = macro_dir > 0
 
-                # For usd_inr, inverse relationship
-                expected_follow = macro_direction if factor != 'usd_inr' else -macro_direction
-                followed = stock_direction == expected_follow
+                    if factor in INVERSE_FACTORS:
+                        followed = stock_up != macro_up
+                    else:
+                        followed = stock_up == macro_up
 
-                opacity = '0.9' if followed else '0.5'
-                stroke = '#fff' if followed else '#888'
+                    # Solid filled = followed expected behavior
+                    # Hollow outline = diverged from expected
+                    if followed:
+                        svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="{color}" opacity="0.9" stroke="{color}" stroke-width="1"/>')
+                    else:
+                        svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="none" opacity="0.9" stroke="{color}" stroke-width="1.5"/>')
 
-                svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="{color}" opacity="{opacity}" stroke="{stroke}" stroke-width="0.5"/>')
+                    sq_stack += sq_size + 2
 
         # Date label every 15 days
         if i % 15 == 0:
-            svg_elements.append(f'<text x="{cx:.1f}" y="{svg_height-padding_bottom+12}" fill="#333" font-size="7" text-anchor="middle">{date[5:]}</text>')
+            svg_elements.append(f'<text x="{cx:.1f}" y="{svg_height-padding_bottom+14}" fill="#333" font-size="7" text-anchor="middle">{date[5:]}</text>')
 
     # Legend
-    legend_x = padding_left
-    legend_y = 15
-    for factor, colors in MACRO_COLORS.items():
-        svg_elements.append(f'<rect x="{legend_x}" y="{legend_y-6}" width="8" height="8" fill="{colors["square"]}"/>')
-        svg_elements.append(f'<text x="{legend_x+11}" y="{legend_y+1}" fill="#888" font-size="8">{colors["label"]}</text>')
-        legend_x += 70
+    lx = padding_left
+    ly = 18
+    svg_elements.append(f'<circle cx="{lx+5}" cy="{ly}" r="5" fill="none" stroke="#bbbbbb" stroke-width="1.5"/>')
+    svg_elements.append(f'<text x="{lx+13}" y="{ly+4}" fill="#666" font-size="8">Independent vol</text>')
+    lx += 110
 
-    svg_elements.append(f'<text x="{legend_x+20}" y="{legend_y+1}" fill="#555" font-size="8">■ bright=followed expected | ■ dim=diverged</text>')
+    for factor, color in MACRO_COLORS.items():
+        svg_elements.append(f'<rect x="{lx}" y="{ly-5}" width="7" height="7" fill="{color}"/>')
+        svg_elements.append(f'<text x="{lx+10}" y="{ly+3}" fill="#666" font-size="8">{MACRO_LABELS[factor]}</text>')
+        lx += 70
+
+    svg_elements.append(f'<rect x="{lx+10}" y="{ly-5}" width="7" height="7" fill="#888" opacity="0.9"/>')
+    svg_elements.append(f'<text x="{lx+20}" y="{ly+3}" fill="#555" font-size="8">filled=followed</text>')
+    lx += 100
+    svg_elements.append(f'<rect x="{lx+10}" y="{ly-5}" width="7" height="7" fill="none" stroke="#888" stroke-width="1.5"/>')
+    svg_elements.append(f'<text x="{lx+20}" y="{ly+3}" fill="#555" font-size="8">hollow=diverged</text>')
 
     svg = f'<svg width="{svg_width}" height="{svg_height}" style="background:#151515; border-radius:8px; border:1px solid #2a2a2a">{"".join(svg_elements)}</svg>'
 
-    # HTML page
+    # Summary table
+    total_vol_all = sum(c['volume'] for c in daily_candles)
+
     html = f'''<!DOCTYPE html>
 <html>
 <head>
-<title>FMS Utility — Defence ETF Correlation Visual</title>
+<title>FMS Utility — Defence ETF</title>
 <style>
   body {{ background:#111; font-family:monospace; color:#eee; padding:20px; }}
   h1 {{ color:#4af; margin-bottom:4px; }}
   .section {{ background:#161616; border:1px solid #222; border-radius:6px; padding:16px; margin-bottom:16px; }}
-  h2 {{ color:#666; font-size:12px; margin:0 0 10px 0; }}
+  h2 {{ color:#666; font-size:11px; margin:0 0 10px 0; }}
   table {{ width:100%; border-collapse:collapse; }}
   th {{ color:#555; font-size:11px; text-align:left; padding:4px 8px; border-bottom:1px solid #222; }}
   td {{ font-size:11px; padding:4px 8px; border-bottom:1px solid #1a1a1a; color:#aaa; }}
 </style>
 </head>
 <body>
-<h1>FMS Utility — Defence ETF</h1>
-<p style="color:#555; font-size:10px;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Last 6 months daily | Squares = macro spike hours</p>
+<h1>FMS Utility — Defence ETF Correlation Visual</h1>
+<p style="color:#555; font-size:10px;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 6 months daily | Hourly volume attribution</p>
 
 <div class="section">
-<h2>CORRELATION VISUAL — Circle=daily stock move (size=volume) | Square=macro spike day (color=factor, bright=expected follow, dim=diverged)</h2>
+<h2>⬤ Circle = independent volume (neutral) | ■ Filled square = macro factor followed expected | □ Hollow square = macro factor diverged | Circle + Squares = total daily volume</h2>
 {svg}
 </div>
 
 <div class="section">
-<h2>MACRO SPIKE SUMMARY</h2>
+<h2>VOLUME ATTRIBUTION SUMMARY (last 30 days)</h2>
 <table>
-<tr><th>Factor</th><th>Spike Days (last 30 days)</th><th>Defence Followed</th><th>Defence Diverged</th><th>Follow Rate</th></tr>
-'''
+<tr>
+  <th>Factor</th>
+  <th>Days attributed</th>
+  <th>Total volume</th>
+  <th>Avg vol/day</th>
+  <th>% of total</th>
+  <th>Followed</th>
+  <th>Diverged</th>
+</tr>'''
 
-    for factor in MACRO_COLORS:
-        spike_dates = [d for d in daily_macro_spikes if factor in daily_macro_spikes[d]]
+    for factor, color in MACRO_COLORS.items():
+        factor_vol = sum(d.get(factor, 0) for d in daily_attribution.values())
+        factor_days = sum(1 for d in daily_attribution.values() if d.get(factor, 0) > 0)
+        avg_vol = round(factor_vol / factor_days) if factor_days > 0 else 0
+        pct = round(factor_vol / total_vol_all * 100, 1) if total_vol_all > 0 else 0
+
         followed = 0
         diverged = 0
-        for date in spike_dates:
-            if date in dates:
+        for date, attr in daily_attribution.items():
+            if attr.get(factor, 0) > 0 and date in dates:
                 idx = dates.index(date)
                 if idx > 0:
                     stock_up = closes[idx] > closes[idx-1]
-                    macro_up = sum(daily_macro_spikes[date][factor]) > 0
-                    if factor == 'usd_inr':
-                        expected = not macro_up
+                    macro_up = attr.get(factor + '_direction', 0) > 0
+                    if factor in INVERSE_FACTORS:
+                        if stock_up != macro_up:
+                            followed += 1
+                        else:
+                            diverged += 1
                     else:
-                        expected = macro_up
-                    if stock_up == expected:
-                        followed += 1
-                    else:
-                        diverged += 1
-
-        total = followed + diverged
-        follow_rate = f"{round(followed/total*100,1)}%" if total > 0 else "N/A"
-        color = MACRO_COLORS[factor]['square']
+                        if stock_up == macro_up:
+                            followed += 1
+                        else:
+                            diverged += 1
 
         html += f'''<tr>
-<td style="color:{color};">{factor}</td>
-<td>{len(spike_dates)}</td>
+<td style="color:{color};">{MACRO_LABELS[factor]}</td>
+<td>{factor_days}</td>
+<td>{int(factor_vol):,}</td>
+<td>{avg_vol:,}</td>
+<td>{pct}%</td>
 <td style="color:#4f8;">{followed}</td>
 <td style="color:#f84;">{diverged}</td>
-<td>{follow_rate}</td>
+</tr>'''
+
+    indep_vol = sum(d.get('independent', 0) for d in daily_attribution.values())
+    indep_days = sum(1 for d in daily_attribution.values() if d.get('independent', 0) > 0)
+    indep_pct = round(indep_vol / total_vol_all * 100, 1) if total_vol_all > 0 else 0
+
+    html += f'''<tr>
+<td style="color:#bbbbbb;">Independent</td>
+<td>{indep_days}</td>
+<td>{int(indep_vol):,}</td>
+<td>{round(indep_vol/indep_days) if indep_days > 0 else 0:,}</td>
+<td>{indep_pct}%</td>
+<td>—</td>
+<td>—</td>
 </tr>'''
 
     html += '''</table>
@@ -262,7 +326,7 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data):
 
     with open('fms_utility.html', 'w') as f:
         f.write(html)
-    print("Utility visual saved: fms_utility.html")
+    print("Saved: fms_utility.html")
 
 # Run
 print("Fetching hourly macro data...")
@@ -272,6 +336,10 @@ print("\nFetching Defence ETF data...")
 hourly_candles = fetch_hourly_defence()
 daily_candles = fetch_daily_defence()
 
+print("\nCalculating hourly volume attribution...")
+daily_attribution = calculate_hourly_volume_attribution(hourly_candles, macro_data)
+print(f"  {len(daily_attribution)} days with hourly attribution")
+
 print("\nGenerating visual...")
-generate_utility_visual(daily_candles, hourly_candles, macro_data)
+generate_utility_visual(hourly_candles, hourly_candles, macro_data, daily_attribution)
 print("Open: open fms_utility.html")

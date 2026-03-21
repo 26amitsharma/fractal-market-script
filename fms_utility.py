@@ -75,7 +75,12 @@ def calculate_hourly_volume_attribution(hourly_candles, macro_data):
         except:
             candle_time_utc = candle['date']
 
-        date_str = candle['date'].strftime('%Y-%m-%d')
+        try:
+            import pytz
+            candle_utc = candle['date'].astimezone(pytz.utc)
+            date_str = candle_utc.strftime('%Y-%m-%d %H')
+        except:
+            date_str = candle['date'].strftime('%Y-%m-%d %H')
         vol = candle['volume']
 
         if date_str not in daily_attribution:
@@ -113,7 +118,13 @@ def calculate_hourly_volume_attribution(hourly_candles, macro_data):
 def generate_utility_visual(daily_candles, hourly_candles, macro_data, daily_attribution):
     closes = [c['close'] for c in daily_candles]
     volumes = [c['volume'] for c in daily_candles]
-    dates = [c['date'].strftime('%Y-%m-%d') for c in daily_candles]
+    import pytz as _pytz
+    dates = []
+    for c in daily_candles:
+        try:
+            dates.append(c['date'].astimezone(_pytz.utc).strftime('%Y-%m-%d %H'))
+        except:
+            dates.append(c['date'].strftime('%Y-%m-%d %H'))
 
     price_min = min(closes)
     price_max = max(closes)
@@ -172,20 +183,20 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data, daily_att
         else:
             indep_vol = vol
 
-        circle_size = vol_to_size(indep_vol)
+        circle_size = vol_to_size(indep_vol, max_v=global_max_vol)
         svg_elements.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{circle_size:.1f}" fill="none" stroke="#bbbbbb" stroke-width="1.5" opacity="0.7"/>')
 
         # Squares = macro attributed volume
         if attr:
-            sq_x_base = cx + circle_size + 3
             sq_stack = 0
 
             for factor in ['oil', 'gas', 'usd_inr', 'usd_cny']:
                 factor_vol = attr.get(factor, 0)
                 if factor_vol > 0:
-                    sq_size = vol_to_size(factor_vol, max_v=global_max_vol, max_size=14, min_size=2)
-                    sq_x = sq_x_base
-                    sq_y = cy - sq_size/2 - sq_stack
+                    sq_size = vol_to_size(factor_vol, max_v=global_max_vol)
+                    # Place square inside circle, centered, stacked from bottom
+                    sq_x = cx - sq_size/2
+                    sq_y = cy + circle_size - sq_size - sq_stack
 
                     color = MACRO_COLORS[factor]
 
@@ -212,33 +223,12 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data, daily_att
                     else:
                         stock_up = True
 
-                    # Check if significant influence (>50% of total hour volume)
-                    hour_total = attr.get('total', 1)
-                    is_significant = factor_vol / hour_total > 0.501 if hour_total > 0 else False
-
-                    if is_significant:
-                        star_cx = sq_x + sq_size/2
-                        star_cy = sq_y + sq_size/2
-                        sr = sq_size * 0.8
-                        ir = sr * 0.4
-                        import math
-                        star_points = []
-                        for k in range(10):
-                            angle = math.pi * k / 5 - math.pi/2
-                            r = sr if k % 2 == 0 else ir
-                            px = star_cx + r * math.cos(angle)
-                            py = star_cy + r * math.sin(angle)
-                            star_points.append(f"{px:.1f},{py:.1f}")
-                        pts = " ".join(star_points)
-                        fill = color if stock_up else "none"
-                        svg_elements.append(f'<polygon points="{pts}" fill="{fill}" stroke="{color}" stroke-width="1.2" opacity="0.95"/>')
+                    if stock_up:
+                        svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="{color}" opacity="0.9" stroke="{color}" stroke-width="1"/>')
                     else:
-                        if stock_up:
-                            svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="{color}" opacity="0.9" stroke="{color}" stroke-width="1"/>')
-                        else:
-                            svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="none" opacity="0.9" stroke="{color}" stroke-width="1.5"/>')
+                        svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="none" opacity="0.9" stroke="{color}" stroke-width="1.5"/>')
 
-                    sq_stack += sq_size + 2
+                    sq_stack += sq_size + 1
 
         # Date label every 15 days
         if i % 15 == 0:

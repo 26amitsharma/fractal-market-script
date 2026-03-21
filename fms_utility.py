@@ -199,12 +199,44 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data, daily_att
                     else:
                         followed = stock_up == macro_up
 
-                    # Solid filled = followed expected behavior
-                    # Hollow outline = diverged from expected
-                    if followed:
-                        svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="{color}" opacity="0.9" stroke="{color}" stroke-width="1"/>')
+                    # Filled = Defence went UP this hour (tailwind)
+                    # Hollow = Defence went DOWN this hour (headwind)
+                    # Use hourly close vs previous hourly close for accuracy
+                    hourly_closes = [c['close'] for c in hourly_candles]
+                    hourly_dates = [c['date'].strftime('%Y-%m-%d') for c in hourly_candles]
+                    day_hourly = [c['close'] for c in hourly_candles if c['date'].strftime('%Y-%m-%d') == date]
+                    if len(day_hourly) > 1:
+                        stock_up = day_hourly[-1] > day_hourly[0]
+                    elif i > 0:
+                        stock_up = closes[i] > closes[i-1]
                     else:
-                        svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="none" opacity="0.9" stroke="{color}" stroke-width="1.5"/>')
+                        stock_up = True
+
+                    # Check if significant influence (>50% of total hour volume)
+                    hour_total = attr.get('total', 1)
+                    is_significant = factor_vol / hour_total > 0.501 if hour_total > 0 else False
+
+                    if is_significant:
+                        star_cx = sq_x + sq_size/2
+                        star_cy = sq_y + sq_size/2
+                        sr = sq_size * 0.8
+                        ir = sr * 0.4
+                        import math
+                        star_points = []
+                        for k in range(10):
+                            angle = math.pi * k / 5 - math.pi/2
+                            r = sr if k % 2 == 0 else ir
+                            px = star_cx + r * math.cos(angle)
+                            py = star_cy + r * math.sin(angle)
+                            star_points.append(f"{px:.1f},{py:.1f}")
+                        pts = " ".join(star_points)
+                        fill = color if stock_up else "none"
+                        svg_elements.append(f'<polygon points="{pts}" fill="{fill}" stroke="{color}" stroke-width="1.2" opacity="0.95"/>')
+                    else:
+                        if stock_up:
+                            svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="{color}" opacity="0.9" stroke="{color}" stroke-width="1"/>')
+                        else:
+                            svg_elements.append(f'<rect x="{sq_x:.1f}" y="{sq_y:.1f}" width="{sq_size:.1f}" height="{sq_size:.1f}" fill="none" opacity="0.9" stroke="{color}" stroke-width="1.5"/>')
 
                     sq_stack += sq_size + 2
 
@@ -225,10 +257,10 @@ def generate_utility_visual(daily_candles, hourly_candles, macro_data, daily_att
         lx += 70
 
     svg_elements.append(f'<rect x="{lx+10}" y="{ly-5}" width="7" height="7" fill="#888" opacity="0.9"/>')
-    svg_elements.append(f'<text x="{lx+20}" y="{ly+3}" fill="#555" font-size="8">filled=followed</text>')
+    svg_elements.append(f'<text x="{lx+20}" y="{ly+3}" fill="#555" font-size="8">■ filled=tailwind (Defence up)</text>')
     lx += 100
     svg_elements.append(f'<rect x="{lx+10}" y="{ly-5}" width="7" height="7" fill="none" stroke="#888" stroke-width="1.5"/>')
-    svg_elements.append(f'<text x="{lx+20}" y="{ly+3}" fill="#555" font-size="8">hollow=diverged</text>')
+    svg_elements.append(f'<text x="{lx+20}" y="{ly+3}" fill="#555" font-size="8">□ hollow=headwind (Defence down)</text>')
 
     svg = f'<svg width="{svg_width}" height="{svg_height}" style="background:#151515; border-radius:8px; border:1px solid #2a2a2a">{"".join(svg_elements)}</svg>'
 

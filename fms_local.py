@@ -2,7 +2,7 @@ from kiteconnect import KiteConnect
 from datetime import datetime, timedelta
 
 api_key = "tsm9w570sr8un8kj"
-access_token = "pNFU0k6ESU26b5oHDxzgkiAVG3RZBWQj"
+access_token = "Ika9gOlRs1KUm3bnJhEEKUVjCr4Fqcc7"
 
 kite = KiteConnect(api_key=api_key)
 kite.set_access_token(access_token)

@@ -44,6 +44,50 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_support_resistance(zerodha_token, current_price):
+    """Get support and resistance levels from large volume daily candles"""
+    from datetime import datetime, timedelta
+    to_date = datetime.now()
+    from_date = to_date - timedelta(days=365)
+    
+    try:
+        candles = kite.historical_data(zerodha_token, from_date, to_date, 'day')
+    except:
+        return [], []
+    
+    if not candles:
+        return [], []
+    
+    avg_vol = sum(c['volume'] for c in candles) / len(candles)
+    
+    # Large circles = above average volume
+    large = [c for c in candles if c['volume'] > avg_vol]
+    
+    # Support = large circles below current price, sorted by recency
+    support = sorted(
+        [c for c in large if c['close'] < current_price],
+        key=lambda x: x['date'], reverse=True
+    )[:3]
+    
+    # Resistance = large circles above current price, sorted by recency
+    resistance = sorted(
+        [c for c in large if c['close'] > current_price],
+        key=lambda x: x['date'], reverse=True
+    )[:3]
+    
+    max_vol = max(c['volume'] for c in candles) if candles else 1
+    
+    def enrich(levels):
+        return [{
+            'price': c['close'],
+            'volume': c['volume'],
+            'date': c['date'].strftime('%Y-%m-%d'),
+            'vol_ratio': round(c['volume'] / max_vol, 3),
+            'pct_from_current': round((c['close'] - current_price) / current_price * 100, 1)
+        } for c in levels]
+    
+    return enrich(support), enrich(resistance)
+
 def get_regime_context():
     """Get current regime context for all 4 factors from SQLite"""
     conn = get_db()
@@ -199,6 +243,10 @@ def generate_supergraph(instrument_name, zerodha_token, progress_callback=None):
     progress(2)
     hourly_candles = fetch_hourly_stock(zerodha_token)
 
+    print("  Calculating support/resistance levels...")
+    current_price = hourly_candles[-1]['close'] if hourly_candles else 0
+    support_levels, resistance_levels = get_support_resistance(zerodha_token, current_price)
+    progress(3)
     print("  Calculating attribution...")
     progress(3)
     attribution = calculate_attribution(hourly_candles, macro_data)
@@ -219,6 +267,12 @@ def generate_supergraph(instrument_name, zerodha_token, progress_callback=None):
 
     price_min = min(closes)
     price_max = max(closes)
+    
+    # Extend range to show nearest support and resistance
+    if support_levels:
+        price_min = min(price_min, support_levels[0]['price'] * 0.998)
+    if resistance_levels:
+        price_max = max(price_max, resistance_levels[0]['price'] * 1.002)
     price_mid = (price_min + price_max) / 2
     price_range = price_max - price_min if price_max != price_min else 1
     global_max_vol = max(volumes) if volumes else 1
@@ -248,6 +302,24 @@ def generate_supergraph(instrument_name, zerodha_token, progress_callback=None):
         col = '#333' if p == price_mid else '#2a2a2a'
         svg_elements.append(f'<line x1="{padding_left}" y1="{y:.1f}" x2="{svg_width-padding_right}" y2="{y:.1f}" stroke="{col}" stroke-width="0.8" stroke-dasharray="4,4"/>')
         svg_elements.append(f'<text x="{padding_left-4}" y="{y+3:.1f}" fill="#444" font-size="8" text-anchor="end">{label}</text>')
+
+    # Draw support bands (green) - only nearest S1
+    if support_levels:
+        s1 = support_levels[0]
+        sy = price_to_y(s1['price'])
+        band_opacity = round(0.3 + s1['vol_ratio'] * 0.4, 2)
+        band_height = max(3, s1['vol_ratio'] * 12)
+        svg_elements.append(f'<rect x="{padding_left}" y="{sy:.1f}" width="{svg_width-padding_left-padding_right}" height="{band_height:.1f}" fill="#44ff88" opacity="{band_opacity}" stroke="none"/>')
+        svg_elements.append(f'<text x="{svg_width-padding_right-2}" y="{sy-2:.1f}" fill="#44ff88" font-size="8" text-anchor="end" opacity="0.7">S1 {s1["price"]:.1f}</text>')
+
+    # Draw resistance bands (red) - only nearest R1
+    if resistance_levels:
+        r1 = resistance_levels[0]
+        ry = price_to_y(r1['price'])
+        band_opacity = round(0.3 + r1['vol_ratio'] * 0.4, 2)
+        band_height = max(3, r1['vol_ratio'] * 12)
+        svg_elements.append(f'<rect x="{padding_left}" y="{ry:.1f}" width="{svg_width-padding_left-padding_right}" height="{band_height:.1f}" fill="#ff4466" opacity="{band_opacity}" stroke="none"/>')
+        svg_elements.append(f'<text x="{svg_width-padding_right-2}" y="{ry-2:.1f}" fill="#ff4466" font-size="8" text-anchor="end" opacity="0.7">R1 {r1["price"]:.1f}</text>')
 
     # Connect circles
     for i in range(1, n):
@@ -397,7 +469,41 @@ def generate_supergraph(instrument_name, zerodha_token, progress_callback=None):
 </table>
 </div>
 
+{sr_table}
 </body></html>'''
+
+    # Build support/resistance table
+    def sr_rows(levels, label, color):
+        if not levels:
+            return f'<tr><td colspan="5" style="color:#444;">No {label} zones found</td></tr>'
+        rows = ''
+        for idx, l in enumerate(levels):
+            opacity = '1.0' if idx == 0 else '0.6'
+            tag = '← on graph' if idx == 0 else ''
+            rows += f'''<tr>
+<td style="color:{color}; opacity:{opacity};">{label}{idx+1}</td>
+<td style="opacity:{opacity};">{l["price"]:.2f}</td>
+<td style="opacity:{opacity};">{l["pct_from_current"]:+.1f}%</td>
+<td style="opacity:{opacity};">{l["volume"]:,}</td>
+<td style="opacity:{opacity}; color:#555;">{l["date"]} {tag}</td>
+</tr>'''
+        return rows
+
+    sr_table = f'''
+<div class="regime-section" style="margin-top:8px;">
+<h2>SUPPORT & RESISTANCE — Volume-based large circle levels (last 1 year daily)</h2>
+<table>
+<tr>
+  <th>Level</th>
+  <th>Price</th>
+  <th>% from current</th>
+  <th>Volume</th>
+  <th>Date</th>
+</tr>
+{sr_rows(resistance_levels, "R", "#ff4466")}
+{sr_rows(support_levels, "S", "#44ff88")}
+</table>
+</div>'''
 
     filename = f'fms_supergraph_{instrument_name.lower().replace(" ","_")}.html'
     with open(filename, 'w') as f:
